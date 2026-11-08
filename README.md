@@ -1,4 +1,4 @@
-# SplitRupee (GitHub Pages)
+# SplitRupee ( GitHub Pages )
 
 Splitwise-style expense splitting in ₹ on GitHub Pages. Each group is saved as `data/<group-name>.json` in a separate private data repo through the GitHub API.
 
