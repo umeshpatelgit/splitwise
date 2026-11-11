@@ -99,6 +99,7 @@ button.tiny{padding:4px 10px;font-size:.85rem}
 
   <h2>History</h2>
   <div class="panel"><ul class="list" id="history"></ul></div>
+  <p class="err" id="histErr" role="alert"></p>
 </section>
 
 <section id="missing" hidden>
@@ -272,9 +273,12 @@ function render(g, flash) {
     : '<li class="muted">No expenses yet. Add the first one above.</li>';
 }
 
+let busy = 0;   // number of saves in flight; background refresh pauses while > 0
 async function guard(errSel, fn) {
   $(errSel).textContent = '';
+  busy++;
   try { await fn(); } catch (e) { $(errSel).textContent = e.message; }
+  finally { busy--; }
 }
 
 /* ---------- pages ---------- */
@@ -296,7 +300,8 @@ if (!slug) {
   store.get(slug).then((g) => { $('#group').hidden = false; render(g); setInterval(poll, 30000); })
     .catch(() => { $('#missing').hidden = false; });
 
-  async function poll() { try { const g = await store.get(slug); if (g.updatedAt !== G.updatedAt) render(g); } catch {} }
+  // Only accept data that is newer than what is on screen, so a stale read can never bring back deleted items.
+  async function poll() { if (busy) return; try { const g = await store.get(slug); if (!busy && g.updatedAt > G.updatedAt) render(g); } catch {} }
 
   $('#copyBtn').onclick = async () => {
     try { await navigator.clipboard.writeText(location.href); $('#copyBtn').textContent = 'Link copied'; }
@@ -320,10 +325,14 @@ if (!slug) {
   };
   $('#history').onclick = (ev) => {
     const id = ev.target.dataset.del; if (!id || !confirm('Delete this entry for everyone in the group?')) return;
-    guard('#expErr', async () => render(await store.remove(slug, id)));
+    const before = G;   // remove from the screen immediately, restore it if saving fails
+    render({...G, expenses: G.expenses.filter((e) => e.id !== id)});
+    guard('#histErr', async () => {
+      try { render(await store.remove(slug, id)); }
+      catch (e) { render(before); throw e; }
+    });
   };
 }
 </script>
 </body>
 </html>
- 
